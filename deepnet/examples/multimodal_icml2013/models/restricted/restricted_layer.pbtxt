@@ -1,0 +1,184 @@
+name: "restricted_layer"
+model_type: FEED_FORWARD_NET
+layer {
+  name: "image_hidden2"
+  dimensions: 1024
+  is_input: true
+  param {
+    name: "bias"
+    initialization: CONSTANT
+  }
+  data_field {
+    train: "image_hidden2_train"
+    validation: "image_hidden2_validation"
+  }
+}
+layer {
+  name: "text_hidden2"
+  dimensions: 1024
+  is_input: true
+  param {
+    name: "bias"
+    initialization: CONSTANT
+  }
+  data_field {
+    train: "text_hidden2_train"
+    validation: "text_hidden2_validation"
+  }
+}
+layer {
+  name: "label_layer"
+  dimensions: 1
+  is_input: true
+  data_field {
+    train: "label_hidden2_train"
+    validation: "label_hidden2_validation"
+  }
+}
+layer {
+  name: "indices_layer"
+  dimensions: 1
+  is_input: true
+  data_field {
+    train: "indices_hidden2_train"
+    validation: "indices_hidden2_validation"
+  }
+}
+layer {
+  name: "image_restricted_hidden"
+  dimensions: 512
+  param {
+    name: "bias"
+    initialization: CONSTANT
+  }
+  hyperparams {
+    sparsity: true
+    enable_display: false
+  }
+  performance_stats {
+    compute_sparsity: true
+  }
+  restricted: true
+  restricted_to: "text_restricted_hidden"
+  restricted_lambda: 1.0
+  restricted_beta: 0.2
+  label_to: "label_layer"
+}
+layer {
+  name: "text_restricted_hidden"
+  dimensions: 512
+  param {
+    name: "bias"
+    initialization: CONSTANT
+  }
+  hyperparams {
+    sparsity: true
+    enable_display: false
+  }
+  performance_stats {
+    compute_sparsity: true
+  }
+  restricted: true
+  restricted_to: "image_restricted_hidden"
+  restricted_lambda: 1.0
+  restricted_beta: 0.2
+  label_to: "label_layer"
+}
+layer {
+  name: "image_hidden2_recon"
+  dimensions: 1024
+  param {
+    name: "bias"
+    initialization: CONSTANT
+  }
+  is_output: true
+  loss_function: SQUARED_LOSS
+  hyperparams {
+    sparsity: false
+    apply_l2_decay: false
+  }
+  data_field {
+    tied: true
+    tied_to: "image_hidden2"
+  }
+  performance_stats {
+    compute_correct_preds: false
+    compute_cross_entropy: false
+    compute_error: true
+  }
+}
+layer {
+  name: "text_hidden2_recon"
+  dimensions: 1024
+  param {
+    name: "bias"
+    initialization: CONSTANT
+  }
+  is_output: true
+  loss_function: SQUARED_LOSS
+  hyperparams {
+    sparsity: false
+    apply_l2_decay: false
+  }
+  data_field {
+    tied: true
+    tied_to: "text_hidden2"
+  }
+  performance_stats {
+    compute_correct_preds: false
+    compute_cross_entropy: false
+    compute_error: true
+  }
+}
+edge {
+  node1: "image_hidden2"
+  node2: "image_restricted_hidden"
+  param {
+    name: "weight"
+    initialization: DENSE_GAUSSIAN_SQRT_FAN_IN
+    sigma: 1.0
+  }
+}
+edge {
+  node1: "image_restricted_hidden"
+  node2: "image_hidden2_recon"
+  param {
+    name: "weight"
+    initialization: DENSE_GAUSSIAN_SQRT_FAN_IN
+    sigma: 1.0
+  }
+}
+edge {
+  node1: "text_hidden2"
+  node2: "text_restricted_hidden"
+  param {
+    name: "weight"
+    initialization: DENSE_GAUSSIAN_SQRT_FAN_IN
+    sigma: 1.0
+  }
+}
+edge {
+  node1: "text_restricted_hidden"
+  node2: "text_hidden2_recon"
+  param {
+    name: "weight"
+    initialization: DENSE_GAUSSIAN_SQRT_FAN_IN
+    sigma: 1.0
+  }
+}
+hyperparams {
+  base_epsilon: 0.1
+  epsilon_decay: INVERSE_T
+  epsilon_decay_half_life: 10000
+  initial_momentum: 0.5
+  final_momentum: 0.9
+  momentum_change_steps: 10000
+  sparsity: false
+  sparsity_target: 0.2
+  sparsity_cost: 0.2
+  sparsity_damping: 0.9
+  apply_l2_decay: true
+  l2_decay: 0.0001
+  activation: LOGISTIC
+  select_model_using_restricted: true
+}

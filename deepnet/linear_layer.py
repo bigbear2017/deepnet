@@ -57,6 +57,7 @@ class LinearLayer(Layer):
       error = target.euclid_norm()**2
       perf.error = error
       if get_deriv:
+        self.deriv.mult(self.loss_factor)
         self.ComputeDeriv()
     elif self.loss_function == deepnet_pb2.Layer.HINGE_LOSS:
       pass

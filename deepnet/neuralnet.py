@@ -57,7 +57,10 @@ class NeuralNet(object):
       self.verbose = self.e_op.verbose
       self.batchsize = self.e_op.batchsize
     self.train_stop_steps = sys.maxint
-
+    
+    self.restricted_validnum = 0
+    self.restricted_testnum = 0
+    
   def PrintNetwork(self):
     for layer in self.layer:
       print layer.name
@@ -83,7 +86,12 @@ class NeuralNet(object):
       if layer.tied:
         tied_to = next(l for l in self.layer if l.name == layer.tied_to)
       self.layer.append(CreateLayer(Layer, layer, self.t_op, tied_to=tied_to))
-
+    
+    for layer in self.layer:
+      if layer.restricted:
+        layer.restricted_layer = self.GetLayerByName(layer.restricted_to)
+        layer.label_layer = self.GetLayerByName(layer.label_to)
+    
     for edge in self.net.edge:
       hyp = deepnet_pb2.Hyperparams()
       hyp.CopyFrom(self.net.hyperparams)
@@ -248,7 +256,20 @@ class NeuralNet(object):
     else:  # Receiving derivative for the first time.
       cm.dot(edge.params['weight'], deriv, target=layer.deriv)
       layer.dirty = True
+      if layer.restricted:
+        layer.state.subtract(layer.restricted_layer.state, target=layer.temp_state)
+        layer.temp_state.mult_by_row(layer.label_layer.data, target=layer.temp_state2)
+        layer.deriv.add_mult(layer.temp_state2, layer.restricted_lambda)
 
+        cm.abs(layer.temp_state, target=layer.temp_state2)
+        layer.temp_state2.mult(-layer.restricted_beta)
+        cm.exp(layer.temp_state2)
+        layer.label_layer.data.subtract(1, target=layer.temp_label)
+        layer.temp_state2.mult_by_row(layer.temp_label)
+        layer.temp_state.sign(target=layer.temp_state)
+        layer.temp_state2.mult(layer.temp_state)
+        layer.deriv.add_mult(layer.temp_state2, layer.restricted_beta * layer.restricted_lambda)
+        
   def UpdateEdgeParams(self, edge, deriv, step):
     """ Update the parameters associated with this edge.
 
@@ -612,7 +633,8 @@ class NeuralNet(object):
     select_model_using_error = self.net.hyperparams.select_model_using_error
     select_model_using_acc = self.net.hyperparams.select_model_using_acc
     select_model_using_map = self.net.hyperparams.select_model_using_map
-    select_best = select_model_using_error or select_model_using_acc or select_model_using_map
+    select_model_using_restricted = self.net.hyperparams.select_model_using_restricted
+    select_best = select_model_using_error or select_model_using_acc or select_model_using_map or select_model_using_restricted
     if select_best:
       best_valid_error = float('Inf')
       test_error = float('Inf')
@@ -641,8 +663,12 @@ class NeuralNet(object):
         stats = []
         # Evaluate on validation set.
         self.Evaluate(validation=True, collect_predictions=collect_predictions)
+        if select_model_using_restricted:
+          self.CalcRestricted(dataset='validation')
         # Evaluate on test set.
         self.Evaluate(validation=False, collect_predictions=collect_predictions)
+        if select_model_using_restricted:
+          self.CalcRestricted(dataset='test')
         if select_best:
           valid_stat = self.net.validation_stats[-1]
           if len(self.net.test_stats) > 1:
@@ -658,6 +684,9 @@ class NeuralNet(object):
           elif select_model_using_map:
             valid_error = 1 - valid_stat.MAP
             _test_error = 1 - test_stat.MAP
+          elif select_model_using_restricted:
+            valid_error = 1 - self.restricted_validnum
+            _test_error = 1 - self.restricted_testnum
           if valid_error < best_valid_error:
             best_valid_error = valid_error
             test_error = _test_error
@@ -684,7 +713,68 @@ class NeuralNet(object):
             print 'Best valid acc : %.4f Test acc %.4f' % (1-best_valid_error, 1-test_error)
           elif select_model_using_map:
             print 'Best valid MAP : %.4f Test MAP %.4f' % (1-best_valid_error, 1-test_error)
+          elif select_model_using_restricted:
+            print 'Best valid MAP : %.4f Test MAP %.4f' % (1-best_valid_error, 1-test_error)
 
           util.WriteCheckpointFile(best_net, best_t_op, best=True)
 
       stop = self.TrainStopCondition(step)
+  
+  #just for espgame dataset
+  def CalcRestricted(self, dataset='test', drop=False):
+    lay_img = self.GetLayerByName('image_restricted_hidden')
+    lay_txt = self.GetLayerByName('text_restricted_hidden')
+    lay_ind = self.GetLayerByName('indices_layer')
+    
+    if dataset == 'train':
+      datagetter = self.GetTrainBatch
+      if self.train_data_handler is None:
+        return
+      numbatches = self.train_data_handler.num_batches
+      size = numbatches * self.train_data_handler.batchsize
+      batch_size = self.train_data_handler.batchsize
+    elif dataset == 'validation':
+      datagetter = self.GetValidationBatch
+      if self.validation_data_handler is None:
+        return
+      numbatches = self.validation_data_handler.num_batches
+      size = numbatches * self.validation_data_handler.batchsize
+      batch_size = self.train_data_handler.batchsize
+    elif dataset == 'test':
+      datagetter = self.GetTestBatch
+      if self.test_data_handler is None:
+        return
+      numbatches = self.test_data_handler.num_batches
+      size = numbatches * self.test_data_handler.batchsize
+      batch_size = self.train_data_handler.batchsize
+    reps_img = np.zeros((size, lay_img.dimensions))
+    reps_txt = np.zeros((size, lay_txt.dimensions))
+    reps_ind = np.zeros(size, dtype=int)
+    
+    for batch in range(numbatches):
+      datagetter()
+      self.ForwardPropagate(train=drop)
+      s = batch * batch_size
+      reps_img[s:s+batch_size,:] = lay_img.state.asarray().T
+      reps_txt[s:s+batch_size,:] = lay_txt.state.asarray().T
+      reps_ind[s:s+batch_size] = lay_ind.state.asarray()
+
+    dist = ((reps_img - reps_txt) ** 2).sum(axis=1)
+    
+    realnum = size // 2
+    rightnum = 0
+    reps_ind_list = list(reps_ind)
+    for i,ind in enumerate(reps_ind_list):
+      if ind < realnum:
+        if dist[reps_ind_list.index(ind + realnum)] > dist[i]:
+          rightnum += 1
+      else:
+        if dist[reps_ind_list.index(ind - realnum)] < dist[i]:
+          rightnum += 1
+    print
+    print dist[np.where(reps_ind < realnum)[0]].mean(), dist[np.where(reps_ind > realnum)[0]].mean(), rightnum
+    print    
+    if dataset == 'test':
+      self.restricted_testnum = rightnum
+    elif dataset == 'validation':
+      self.restricted_validnum = rightnum

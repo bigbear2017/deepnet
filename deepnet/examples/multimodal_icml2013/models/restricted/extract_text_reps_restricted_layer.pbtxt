@@ -1,0 +1,183 @@
+name: "extract_text_reps_restricted_layer"
+model_type: FEED_FORWARD_NET
+
+hyperparams {
+  base_epsilon: 0.1
+  epsilon_decay : INVERSE_T
+  epsilon_decay_half_life : 10000
+  initial_momentum : 0.5
+  final_momentum : 0.9
+  momentum_change_steps : 10000
+  apply_l2_decay: true
+  l2_decay: 0.0001
+  activation: LOGISTIC
+  sparsity : false
+  sparsity_target : 0.2
+  sparsity_cost : 0.1
+  sparsity_damping : 0.9
+}
+
+layer {
+  name: "text_input_layer"
+  dimensions: 1
+  numlabels: 4000
+  is_input: true
+  data_field {
+    train: "text0"
+    validation: "text1"
+  }
+  hyperparams {
+    activation: REPLICATED_SOFTMAX
+    normalize_error: true
+    sparsity: false
+    apply_l2_decay: false
+    sample_input: true
+  }
+}
+layer {
+  name: "text_hidden1"
+  dimensions: 1024
+  param {
+    name: "bias"
+    initialization: PRETRAINED
+    pretrained_model: "rbm_models/text_rbm1_LAST"
+  }
+  hyperparams {
+    sparsity : true
+  }
+}
+layer {
+  name: "text_hidden2"
+  dimensions: 1024
+  param {
+    name: "bias"
+    initialization: PRETRAINED
+    pretrained_model: "rbm_models/text_rbm2_LAST"
+  }
+  hyperparams {
+    sparsity : true
+  }
+}
+layer {
+  name: "text_restricted_hidden"
+  dimensions: 512
+  param {
+    name: "bias"
+    initialization: PRETRAINED
+    pretrained_model: "restricted_models/restricted_layer_LAST"
+  }
+  performance_stats {
+    compute_sparsity: true
+  }
+  hyperparams {
+    sparsity : true
+  }
+}
+layer {
+  name: "text_hidden2_recon"
+  dimensions: 1024 
+  param {
+    name: "bias"
+    initialization: PRETRAINED
+    pretrained_model: "restricted_models/restricted_layer_LAST"
+  }
+}
+layer {
+  name: "text_hidden1_recon"
+  dimensions: 1024
+  param {
+    name: "bias"
+    initialization: PRETRAINED
+    pretrained_model: "rbm_models/text_rbm2_LAST"
+    pretrained_model_node1: "text_hidden1"
+  }
+}
+layer {
+  name: "text_input_recon"
+  dimensions: 4000
+  is_output: true
+  param {
+    name: "bias"
+    initialization: PRETRAINED
+    pretrained_model: "rbm_models/text_rbm1_LAST"
+    pretrained_model_node1: "text_input_layer"
+  }
+  loss_function: SQUARED_LOSS
+  data_field {
+    train: "text0"
+    validation: "text1"
+  }
+  performance_stats {
+    compute_cross_entropy: false
+    compute_correct_preds: false
+    compute_error: true
+  }
+  hyperparams {
+    activation: LINEAR
+    apply_l2_decay: false
+  }
+}
+
+edge {
+  node1: "text_input_layer"
+  node2: "text_hidden1"
+  up_factor: 10.0
+  param {
+    name: "weight"
+    initialization: PRETRAINED
+    pretrained_model: "rbm_models/text_rbm1_LAST"
+  }
+}
+edge {
+  node1: "text_hidden1"
+  node2: "text_hidden2"
+  param {
+    name: "weight"
+    initialization: PRETRAINED
+    pretrained_model: "rbm_models/text_rbm2_LAST"
+  }
+}
+edge {
+  node1: "text_hidden2"
+  node2: "text_restricted_hidden"
+  param {
+    name: "weight"
+    initialization: PRETRAINED
+    pretrained_model: "restricted_models/restricted_layer_LAST"
+  }
+}
+edge {
+  node1: "text_restricted_hidden"
+  node2: "text_hidden2_recon"
+  param {
+    name: "weight"
+    initialization: PRETRAINED
+    pretrained_model: "restricted_models/restricted_layer_LAST"
+  }
+}
+edge {
+  node1: "text_hidden2_recon"
+  node2: "text_hidden1_recon"
+  param {
+    name: "weight"
+    initialization: PRETRAINED
+    pretrained_model: "rbm_models/text_rbm2_LAST"
+    pretrained_model_node1: "text_hidden2"
+    pretrained_model_node2: "text_hidden1"
+    transpose_pretrained: true
+  }
+}
+edge {
+  node1: "text_hidden1_recon"
+  node2: "text_input_recon"
+  param {
+    name: "weight"
+    initialization: PRETRAINED
+    pretrained_model: "rbm_models/text_rbm1_LAST"
+    pretrained_model_node1: "text_hidden1"
+    pretrained_model_node2: "text_input_layer"
+    transpose_pretrained: true
+  }
+}
+
+prefix: "/home/feng/data/multimodal_icml2013"

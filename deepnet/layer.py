@@ -1,8 +1,8 @@
 """Implements a layer of neurons."""
 from parameter import *
 
-import matplotlib.pyplot as plt
-plt.ion()
+#import matplotlib.pyplot as plt
+#plt.ion()
 class Layer(Parameter):
 
   def __init__(self, proto, t_op=None, tied_to=None):
@@ -11,6 +11,16 @@ class Layer(Parameter):
     if proto.tied:
       tied_to.num_shares += 1
       proto = util.LoadMissing(proto, tied_to.proto)
+      
+    self.restricted = proto.restricted
+    if self.restricted:
+      self.restricted_to = proto.restricted_to
+      self.label_to = proto.label_to
+      self.restricted_lambda = proto.restricted_lambda
+      self.restricted_beta = proto.restricted_beta
+    self.restricted_layer = None
+    self.label_layer = None
+    
     self.proto = proto
     self.state = None
     self.params = {}
@@ -53,7 +63,9 @@ class Layer(Parameter):
     self.LoadParams(proto, t_op=t_op, tied_to=tied_to)
     if self.batchsize > 0:
       self.AllocateMemory(self.batchsize)
-
+    
+    self.loss_factor = proto.loss_factor
+    
   def LoadParams(self, proto, **kwargs):
     assert proto
     for param in proto.param:
@@ -188,6 +200,10 @@ class Layer(Parameter):
     self.batchsize_temp = cm.CUDAMatrix(np.zeros((1, batchsize)))
     self.state = cm.CUDAMatrix(np.zeros((numdims, batchsize)))
     self.deriv = cm.CUDAMatrix(np.zeros((numdims, batchsize)))
+    if self.restricted:
+      self.temp_state = cm.CUDAMatrix(np.zeros((numdims, batchsize)))
+      self.temp_state2 = cm.CUDAMatrix(np.zeros((numdims, batchsize)))
+      self.temp_label = cm.CUDAMatrix(np.zeros((1, batchsize)))
     if self.t_op:
       if self.t_op.optimizer == deepnet_pb2.Operation.PCD:
         self.pos_state = self.state

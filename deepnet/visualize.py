@@ -1,7 +1,7 @@
 import numpy as np
 import cPickle as pickle
-import matplotlib.pyplot as plt
-plt.ion()
+#import matplotlib.pyplot as plt
+#plt.ion()
 
 fig_id = 0
 def GetFigId():

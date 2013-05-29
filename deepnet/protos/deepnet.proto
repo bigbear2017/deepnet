@@ -42,6 +42,14 @@ message Layer {
   optional string tied_to = 18;
   
   optional float loss_weight = 19 [default=1.0];
+  
+  // Add by Fangxiang Feng
+  optional bool restricted = 20 [default=false];
+  optional string restricted_to = 21;
+  optional float restricted_lambda = 22 [default=1.0];
+  optional float restricted_beta = 23 [default=1.0];
+  optional string label_to = 24;
+  optional float loss_factor = 25 [default=1.0];
 }
 
 message Parameter {
@@ -169,6 +177,9 @@ message Hyperparams {
 
   optional bool fast_dropout = 57 [default=false];
   optional float fast_dropout_cost = 58 [default=0];
+  
+  // Add by Fangxiang Feng
+  optional bool select_model_using_restricted = 59 [default=false];
 }
 
 message Edge {

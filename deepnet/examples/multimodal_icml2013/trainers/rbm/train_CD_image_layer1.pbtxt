@@ -1,0 +1,14 @@
+optimizer: CD
+stopcondition {
+  all_processed: false
+  steps: 20000
+}
+train: true
+batchsize: 100
+data_proto: "espgame.pbtxt"
+eval_after: 1000
+checkpoint_after: 20000
+checkpoint_directory: "/home/feng/data/multimodal_icml2013/rbm_models"
+randomize: true
+verbose: false
+data_proto_prefix: "/home/feng/data/multimodal_icml2013"

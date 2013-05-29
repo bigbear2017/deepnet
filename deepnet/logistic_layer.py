@@ -64,6 +64,7 @@ class LogisticLayer(Layer):
       else:
         self.deriv.assign(target)
       if get_deriv:
+        self.deriv.mult(self.loss_factor)
         self.ComputeDeriv()
     else:
       raise Exception('Unknown loss function for logistic units.')
