@@ -1,13 +1,13 @@
 optimizer: CD
 stopcondition {
   all_processed: false
-  steps: 2000
+  steps: 200
 }
 train: true
 batchsize: 10
 data_proto: "image_rbm1_LAST/data.pbtxt"
 eval_after: 10
-checkpoint_after: 200
+checkpoint_after: 20
 checkpoint_directory: "/home/ec2-user/programs/deepnet/data/hackthon/rbm_models"
 randomize: true
 data_proto_prefix: "/home/ec2-user/programs/deepnet/data/hackthon/rbm_reps"

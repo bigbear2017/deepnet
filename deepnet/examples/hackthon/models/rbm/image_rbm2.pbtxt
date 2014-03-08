@@ -3,10 +3,10 @@ model_type: DBM
 hyperparams {
   base_epsilon: 0.05
   epsilon_decay : INVERSE_T
-  epsilon_decay_half_life : 10000
+  epsilon_decay_half_life : 100
   initial_momentum : 0.5
   final_momentum : 0.9
-  momentum_change_steps : 10000
+  momentum_change_steps : 100
   sparsity : true
   sparsity_target : 0.1
   sparsity_cost : 0.01
@@ -16,13 +16,13 @@ hyperparams {
   activation: LOGISTIC
   mf_steps: 1
   gibbs_steps: 1
-  start_step_up_cd_after: 15000
-  step_up_cd_after: 5000
+  start_step_up_cd_after: 150
+  step_up_cd_after: 50
 }
 
 layer {
   name: "image_hidden1"
-  dimensions: 4096
+  dimensions: 1024
   is_input: true
   param {
     name: "bias"
@@ -45,7 +45,7 @@ layer {
 
 layer {
   name: "image_hidden2"
-  dimensions: 4096
+  dimensions: 1024
   param {
     name: "bias"
     initialization: CONSTANT
