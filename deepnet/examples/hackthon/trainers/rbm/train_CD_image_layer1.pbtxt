@@ -1,0 +1,14 @@
+optimizer: CD
+stopcondition {
+  all_processed: false
+  steps: 200
+}
+train: true
+batchsize: 10
+data_proto: "hackthon.pbtxt"
+eval_after: 10
+checkpoint_after: 20
+checkpoint_directory: "/home/ec2-user/programs/deepnet/data/hackthon/rbm_models"
+randomize: true
+verbose: false
+data_proto_prefix: "/home/ec2-user/programs/deepnet/data/hackthon"
